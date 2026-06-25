@@ -7,7 +7,7 @@ output: html_notebook
 library(ape)
 library(tidyverse)
 library(ggtree)
-library(ggexpand)
+#library(ggexpand)
 library(treeio)
 library(magrittr)
 library(rcartocolor)
