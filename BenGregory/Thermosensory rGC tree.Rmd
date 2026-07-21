@@ -47,9 +47,9 @@ tree_tbl <- as_tibble(tree)
 
 ## Code here to define sequence groups that will be colored differently (optional)
 ```{r colorGroups}
-Clade5_nodes <- dplyr::filter(tree_tbl, grepl('Acey|ANCCAN|NAME|HCON|HPOL',label))
+Clade5_nodes <- dplyr::filter(tree_tbl, grepl('Acey|ANCCAN|NAME|HCON|HPOL|ceylanicum|caninum|americanus|contortus|polygyrus',label))
 Clade4_nodes <- dplyr::filter(tree_tbl, grepl('SRAE|SSTP|Ss|Sr|L596|RSKR',label))
-Clade3_nodes <- dplyr::filter(tree_tbl, grepl('EN70|DINM|AgR0|ALUE',label))
+Clade3_nodes <- dplyr::filter(tree_tbl, grepl('EN70|DINM|AgR0|ALUE|suum',label))
 
 rGC_nodes <- dplyr::filter(tree_tbl, grepl('SRAE|SSTP|Ce|DAF',label))
 Thermo_nodes <- dplyr::filter(tree_tbl, grepl('Ce-GCY-8|Ce-GCY-18|Ce-GCY-23|Ss|Sr|SSTP_0000846800|SSTP_0000775800|SSTP_0000354300|SRAE_0000007100|SRAE_2000430600|SRAE_X000209000',label))
@@ -72,9 +72,10 @@ speciescolors <- c("NonThermo_rGCs" = "black",
 
 ## Plot a tree with color groupings
 ```{r plotTree, message=F, warning=F}
-p <- ggtree(tree, branch.length='none', layout='rectangular') +
+p <- ggtree(tree, branch.length='none', layout='circular') +
     geom_tiplab(size = 3, hjust = 0)  +
-    geom_treescale(x=10, y=0)
+    geom_treescale(x=10, y=0) 
+
 #geom_cladelabel(node = 134, label = "AFD-specific rGCs", align = T, offset = 1,
                #offset.text = 1, barsize = 1, angle = -4,
               #hjust = 'center', fontsize = 3) +
@@ -83,6 +84,7 @@ p <- ggtree(tree, branch.length='none', layout='rectangular') +
 
 p2 <- groupOTU(p, grp, 'Species') + aes(color = Species) +
     scale_color_manual(values = speciescolors)
+p2 <- rotate_tree(p2, -90)
 p2
 ```
 
@@ -90,11 +92,11 @@ p2
 ## Save plot as PDF
 ```{r save, message=F, warning=F}
 ggsave(plot = p2,
-       filename = paste0(sub('\\..*$', '', basename(treefile)), "_Tree.pdf"),
+       filename = paste0(sub('\\..*$', '', basename(treefile)), "_TreeCircle.pdf"),
        path = dirname(treefile),
        device = cairo_pdf,
-       width = 12, 
-       height = 10)
+       width = 16, 
+       height = 16)
 
 ```
     
