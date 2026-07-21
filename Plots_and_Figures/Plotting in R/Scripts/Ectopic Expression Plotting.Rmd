@@ -1,0 +1,211 @@
+---
+title: "Ectopic Expression"
+output: html_document
+date: "2025-01-10"
+---
+
+## Setup
+```{r setup, include=FALSE}
+
+library(knitr)
+library(rmarkdown)
+library(tidyverse)
+library(readxl)
+library(magrittr)
+library(DescTools)
+library(ggthemes)
+library(ggpubr)
+library(rcartocolor)
+library(Cairo)
+library(gtools)
+library(car)
+library(rstatix)
+knitr::opts_chunk$set(echo = TRUE)
+source("../Utils/theme_Publication.R")
+source("../Utils/wormpal.R")
+```
+
+# AFD-rGC Ecoptic Expression Analysis
+Analysis and plotting for a series of experiments testing the effect of 
+misepxresion of *Ss-gcy-23.1*, *Ss-gcy-23.2*, and *Ss-gcy-23.3* in *C. elegans* ASE neurons, in response to the pseudo-fictive PTe 20-40$^\circ$C ramp.   
+
+## Data Inputs
+Data are preprocessed using Matlab TCI file `TCI_analyzeEctopic.m`, which calculates the temperature at which point an experimental trace rises above 3*rms of mean control trace for at least 40 seconds. 
+
+This calculation is run independently for each trace, and the value (in $^\circ$C)
+is saved.
+
+```{r message=FALSE}
+dat_ectopic_file <- c('../Data/Yi_EctopicExpression_R_Import.xlsx')
+if (is_empty(dat_ectopic_file)){
+  dat_ectopic_file <- file.choose()
+}
+meta_ectopic <-read_excel(dat_ectopic_file, sheet = "Metadata")
+dat_ectopic <- read_excel(dat_ectopic_file, sheet = 1) %>%
+  group_by(rGC,Strain)
+
+dat_ectopic_filtered <- dat_ectopic %>%
+  dplyr::filter(rGC != "ASE_ctrl") %>%
+  dplyr::filter(!is.na(Thresh_temp)) %>%
+  dplyr::bind_rows(dplyr::filter(dat_ectopic, rGC == "ASE_ctrl"))
+```
+
+## rGC Plot Templates 
+
+```{r}
+
+plot_ectopic_noctrl <- function(dat, y, meta, ylim, xlabel,
+                                ylabel, stat.test, 
+                                stat.y.position,
+                                title = NULL){
+  
+  ggplot(data = dat, mapping = aes(x = rGC, y = y)) + 
+    
+    stat_boxplot(geom = "errorbar", 
+                 width = 0.25,
+                 linewidth = 0.5) +
+    geom_boxplot(width = 0.5,
+                 outlier.shape = NA,
+                 fatten = 1,
+                 key_glyph = "rect",
+                 alpha = 0.3,
+                 aes(fill = rGC)) +
+    geom_jitter(size = 2,
+                stroke = .75,
+                width = .2,
+                aes(color = rGC, shape = Strain)) +
+    stat_pvalue_manual(stat.test, 
+                       y.position = stat.y.position,
+                       step.increase = 0.1,
+                       tip.length = 0,
+                       hide.ns = TRUE,
+                       bracket.shorten = 0.2,
+                       label = "p.adj.signif"
+    ) + 
+    scale_y_continuous(limits = ylim, 
+                       expand = expansion(add = 0)) +
+    xlab(xlabel) +
+    ylab(ylabel) +
+    ggtitle(title) +
+    scale_fill_manual(values = worm.pal()) +
+    scale_color_manual(values = worm.pal())+
+    scale_shape_manual(values = rep(c(21:23), 20))  +
+    theme_Publication() +
+    theme(aspect.ratio = 4/3,
+          axis.text.x = element_text(angle= 45,
+                                     
+                                     hjust = 1))
+}
+```
+
+
+## Temperature Threshold  
+Stats are Kruskal-Wallis Test with Dunn's Post tests for difference in response amplitude.  
+``` {r}
+# ---- Temperature Threshold Plot ----
+
+xlabel <- "Ss-AFD-rGCs"
+ylabel <- " Temperature (C)"
+title <- "Threshold Temperature"
+ylim <- c(19, 42)
+
+dat.subset <-dplyr::filter(dat_ectopic_filtered, rGC != "ASE_ctrl")%>%
+  dplyr::mutate(Strain = as_factor(Strain)) %>%
+  dplyr::mutate(rGC = as_factor(rGC))
+
+# Kruskal-Wallis testing of response amplitude differences
+one.way <- kruskal.test(Thresh_temp ~ rGC, 
+                        data = dat.subset)
+
+# Posthoc Dunn tests with Bonferroni adjustment
+post.hoc <- dunn.test::dunn.test(dat.subset$Thresh_temp, 
+                                 dat.subset$rGC, 
+                                 method = "bonferroni",
+                                 table = FALSE,
+                                 list = TRUE)
+
+stat.test.ectopic.thresh <- dplyr::tibble(
+  comparisons = post.hoc$comparisons,
+  p.adj = post.hoc$P.adjusted,
+  p.adj.signif = stars.pval(post.hoc$P.adjusted)
+) %>%
+  mutate(p.adj.signif = case_when(p.adj.signif == " " ~ "ns",
+                                  TRUE ~ as.character(p.adj.signif))) %>%
+  tidyr::separate(comparisons, 
+                  into = c("group1", "group2"),
+                  sep = " - ")
+
+p_ectopic_thresh<- plot_ectopic_noctrl(dat.subset, 
+                                       dat.subset$Thresh_temp, 
+                                       meta_ectopic,
+                                       ylim,
+                                       xlabel, 
+                                       ylabel,
+                                       stat.test.ectopic.thresh,
+                                       42,
+                                       title)
+
+
+print(p_ectopic_thresh)
+
+
+```
+
+## Temperature driving maximum response  
+
+Stats are Kruskal-Wallis Test with Dunn's Post tests for difference in response amplitude.  
+```{r}
+# Kruskal-Wallis testing of response amplitude differences
+one.way <- kruskal.test(Tmax ~ rGC, 
+                        data = dat.subset)
+
+# Posthoc Dunn tests with Bonferroni adjustment
+post.hoc <- dunn.test::dunn.test(dat.subset$Tmax, 
+                                 dat.subset$rGC, 
+                                 method = "bonferroni",
+                                 table = FALSE,
+                                 list = TRUE)
+
+xlabel <- "Ss-AFD-rGCs"
+ylabel <- "Temperature (deg C)"
+title <- "Temperature driving max calcium response"
+ylim <- c(19,42)
+
+stat.test.ectopic.Tmax <- dplyr::tibble(
+  comparisons = post.hoc$comparisons,
+  p.adj = post.hoc$P.adjusted,
+  p.adj.signif = stars.pval(post.hoc$P.adjusted)
+) %>%
+  mutate(p.adj.signif = case_when(p.adj.signif == " " ~ "ns",
+                                  TRUE ~ as.character(p.adj.signif))) %>%
+  tidyr::separate(comparisons, 
+                  into = c("group1", "group2"),
+                  sep = " - ")
+
+p_Tmax<- plot_ectopic_noctrl(dat.subset, 
+                             dat.subset$Tmax, 
+                             meta_ectopic,
+                             ylim,
+                             xlabel, 
+                             ylabel,
+                             stat.test.ectopic.Tmax,
+                             42,
+                             title)
+
+print(p_Tmax)
+```
+
+## Group and Save Plots
+```{r}
+ggarrange(
+  p_ectopic_thresh,
+  p_Tmax, 
+  ncol = 2,
+  nrow = 1
+) %>%
+  ggsave(filename ="../Outputs/YiEctopicrGCExpression.pdf",
+         device = cairo_pdf,
+         width = 9,
+         # height = 3.5,
+         path = "./")
+```
